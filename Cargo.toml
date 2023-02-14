@@ -1,0 +1,14 @@
+[package]
+edition = "2021"
+name = "growattproxy"
+version = "0.1.0"
+default-run = "growattproxy"
+
+[dependencies]
+env_logger = "0.10.0"
+tokio = { version = "1.21.2", features = ["macros", "net", "io-util", "rt"] }
+log = "0.4.17"
+clap = { version = "4.0.18", features = ["derive"] }
+futures = "0.3.25"
+local-ip-address = "0.5.1"
+crc16 = "0.4.0"
