@@ -8,35 +8,62 @@ const HEADER_SIZE: usize = 8;
 
 pub enum FieldType {
     Text,
-    Numeric,
+    Number(u16),
 }
 
 pub struct FieldSpecification {
     name: String,
-    field_type: FieldType,
     offset: usize,
     length: usize,
-    divide: u16,
+    field_type: FieldType,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum FieldValue
+{
+    Text(String),
+    Number(f64),
+}
+
+#[derive(Clone)]
+pub struct Field {
+    name: String,
+    value: FieldValue,
+}
+
+
+impl Field {
+    fn text(name: &str, value: &str) -> Field {
+        Field {
+            name: String::from(name),
+            value: FieldValue::Text(String::from(value)),
+        }
+    }
+
+    fn number(name: &str, value: f64) -> Field {
+        Field {
+            name: String::from(name),
+            value: FieldValue::Number(value),
+        }
+    }
 }
 
 impl FieldSpecification {
     pub fn text(name: &str, offset: usize, length: usize) -> FieldSpecification {
         FieldSpecification {
             name: name.to_string(),
-            field_type: FieldType::Text,
             offset: offset / 2,
             length,
-            divide: 0,
+            field_type: FieldType::Text,
         }
     }
 
     pub fn number(name: &str, offset: usize, length: usize, divide: u16) -> FieldSpecification {
         FieldSpecification {
             name: name.to_string(),
-            field_type: FieldType::Numeric,
             offset: offset / 2,
             length,
-            divide,
+            field_type: FieldType::Number(divide),
         }
     }
 }
@@ -47,40 +74,26 @@ pub struct LayoutSpecification {
 }
 
 pub struct GrowattData {
-    datalogserial: String,
-    pvserial: String,
-    // pvstatus: f64,
-    // pvpowerin: f64,
-    // pv1voltage: f64,
-    // pv1current: f64,
-    // pv1watt: f64,
-    // pv2voltage: f64,
-    // pv2current: f64,
-    // pv2watt: f64,
-    // pvpowerout: f64,
-    // pvfrequentie: f64,
-    // pvgridvoltage: f64,
-    // pvgridcurrent: f64,
-    // pvgridpower: f64,
-    // pvgridvoltage2: f64,
-    // pvgridcurrent2: f64,
-    // pvgridpower2: f64,
-    // pvgridvoltage3: f64,
-    // pvgridcurrent3: f64,
-    // pvgridpower3: f64,
-    // totworktime: f64,
-    // pvenergytoday: f64,
-    // pvenergytotal: f64,
-    // epvtotal: f64,
-    // epv1today: f64,
-    // epv1total: f64,
-    // epv2today: f64,
-    // epv2total: f64,
-    // pvtemperature: f64,
-    // pvipmtemperature: f64,
+    fields: Vec<Field>,
 }
 
 impl GrowattData {
+    fn new() -> GrowattData {
+        GrowattData { fields: Vec::new() }
+    }
+
+    pub fn field_value(&self, name: &str) -> Option<FieldValue> {
+        return self.fields.iter().find(|&f| f.name == name).map(|f| f.value.clone());
+    }
+
+    fn add_text_field(&mut self, name: &str, value: &str) {
+        self.fields.push(Field::text(name, value));
+    }
+
+    fn add_number_field(&mut self, name: &str, value: f64) {
+        self.fields.push(Field::number(name, value));
+    }
+
     fn decrypt(growatt_data: &mut [u8]) {
         static MASK: &[u8; 7] = b"Growatt";
 
@@ -140,54 +153,47 @@ impl GrowattData {
 
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open("/Users/dirk/growatt.bin")?;
+            // let mut file = std::fs::OpenOptions::new()
+            //     .write(true)
+            //     .create(true)
+            //     .open("/Users/dirk/growatt.bin")?;
 
-            std::io::Write::write_all(&mut file, &growatt_data);
+            // std::io::Write::write_all(&mut file, &growatt_data);
         }
+
+        let mut result = GrowattData::new();
 
         for field in &spec.fields {
             let data_slice = &growatt_data[field.offset..field.offset + field.length];
             match field.field_type {
                 FieldType::Text => {
-                    log::info!(
-                        "Text field: {} = {}",
-                        field.name,
-                        std::str::from_utf8(&data_slice)
-                            .expect(format!("Invalid string: {:02x?}", data_slice).as_str())
-                    );
+                    let val = std::str::from_utf8(&data_slice)?;
+                    result.add_text_field(field.name.as_str(), val);
                 }
 
-                FieldType::Numeric => {
+                FieldType::Number(divide) => {
+                    let val: f64;
                     if field.length == 2 {
-                        log::info!(
-                            "Numeric field: {} = {}",
-                            field.name,
-                            u16::from_be_bytes(data_slice.try_into().expect("Invalid u16 length"))
-                        );
+                        val = u16::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as f64 / divide as f64;
                     } else if field.length == 4 {
-                        log::info!(
-                            "Numeric field: {} = {}",
-                            field.name,
-                            u32::from_be_bytes(data_slice.try_into().expect("Invalid u32 length"))
-                        );
+                        val = u32::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as f64 / divide as f64;
+                    } else {
+                        return Err(ProxyError::RuntimeError(format!("Invalid length for number: {}", field.length)));
                     }
+
+                    result.add_number_field(field.name.as_str(), val);
                 }
             }
         }
 
-        Ok(GrowattData {
-            datalogserial: String::from(""),
-            pvserial: String::from(""),
-        })
+        Ok(result)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::dataprocessor::FieldSpecification;
+    use crate::dataprocessor::FieldValue;
     use crate::dataprocessor::LayoutSpecification;
 
     use super::GrowattData;
@@ -243,6 +249,6 @@ mod tests {
         let mut data = growatt_data.to_vec();
 
         let gd = GrowattData::from_buffer(&mut data, &t065004x).unwrap();
-        assert_eq!(gd.datalogserial, "serial");
+        assert_eq!(gd.field_value("serial").unwrap(), FieldValue::Text(String::from("serial")));
     }
 }

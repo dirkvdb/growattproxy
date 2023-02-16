@@ -2,7 +2,7 @@
 pub mod proxy;
 pub mod dataprocessor;
 
-use std::{fmt, net::AddrParseError, array::TryFromSliceError};
+use std::{fmt, net::AddrParseError, array::TryFromSliceError, str::Utf8Error};
 
 #[derive(Debug)]
 pub enum ProxyError {
@@ -48,6 +48,12 @@ impl From<AddrParseError> for ProxyError {
 
 impl From<TryFromSliceError> for ProxyError {
     fn from(_: TryFromSliceError) -> Self {
+        ProxyError::ParseError
+    }
+}
+
+impl From<Utf8Error> for ProxyError {
+    fn from(_: Utf8Error) -> Self {
         ProxyError::ParseError
     }
 }
