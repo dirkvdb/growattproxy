@@ -1,6 +1,7 @@
 use std::iter::zip;
 
 use crc16::{State, MODBUS};
+use num_rational::Rational64;
 
 use crate::ProxyError;
 
@@ -8,7 +9,7 @@ const HEADER_SIZE: usize = 8;
 
 pub enum FieldType {
     Text,
-    Number(u16),
+    Number(i64),
 }
 
 pub struct FieldSpecification {
@@ -18,11 +19,10 @@ pub struct FieldSpecification {
     field_type: FieldType,
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum FieldValue
-{
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FieldValue {
     Text(String),
-    Number(f64),
+    Number(Rational64),
 }
 
 #[derive(Clone)]
@@ -30,7 +30,6 @@ pub struct Field {
     name: String,
     value: FieldValue,
 }
-
 
 impl Field {
     fn text(name: &str, value: &str) -> Field {
@@ -40,7 +39,7 @@ impl Field {
         }
     }
 
-    fn number(name: &str, value: f64) -> Field {
+    fn number(name: &str, value: Rational64) -> Field {
         Field {
             name: String::from(name),
             value: FieldValue::Number(value),
@@ -58,7 +57,7 @@ impl FieldSpecification {
         }
     }
 
-    pub fn number(name: &str, offset: usize, length: usize, divide: u16) -> FieldSpecification {
+    pub fn number(name: &str, offset: usize, length: usize, divide: i64) -> FieldSpecification {
         FieldSpecification {
             name: name.to_string(),
             offset: offset / 2,
@@ -90,7 +89,7 @@ impl GrowattData {
         self.fields.push(Field::text(name, value));
     }
 
-    fn add_number_field(&mut self, name: &str, value: f64) {
+    fn add_number_field(&mut self, name: &str, value: Rational64) {
         self.fields.push(Field::number(name, value));
     }
 
@@ -172,16 +171,22 @@ impl GrowattData {
                 }
 
                 FieldType::Number(divide) => {
-                    let val: f64;
-                    if field.length == 2 {
-                        val = u16::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as f64 / divide as f64;
+                    let val: i64;
+                    if field.length == 1 {
+                        val = u8::from_be_bytes(data_slice.try_into().expect("Invalid u8 length")) as i64;
+                    } else if field.length == 2 {
+                        val = u16::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as i64;
                     } else if field.length == 4 {
-                        val = u32::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as f64 / divide as f64;
+                        val = u32::from_be_bytes(data_slice.try_into().expect("Invalid u32 length")) as i64;
                     } else {
-                        return Err(ProxyError::RuntimeError(format!("Invalid length for number: {}", field.length)));
+                        return Err(ProxyError::RuntimeError(format!(
+                            "Invalid length for number: {}",
+                            field.length
+                        )));
                     }
 
-                    result.add_number_field(field.name.as_str(), val);
+                    assert!(divide != 0);
+                    result.add_number_field(field.name.as_str(), Rational64::new(val, divide));
                 }
             }
         }
@@ -211,7 +216,7 @@ mod tests {
             fields: Vec::from([
                 FieldSpecification::text("pvserial", 76, 10),
                 FieldSpecification::number("date", 136, 1, 10),
-                FieldSpecification::number("pvstatus", 158, 2, 0),
+                FieldSpecification::number("pvstatus", 158, 2, 1),
                 FieldSpecification::number("pvpowerin", 162, 4, 10),
                 FieldSpecification::number("pv1voltage", 170, 2, 10),
                 FieldSpecification::number("pv1current", 174, 2, 10),
@@ -249,6 +254,9 @@ mod tests {
         let mut data = growatt_data.to_vec();
 
         let gd = GrowattData::from_buffer(&mut data, &t065004x).unwrap();
-        assert_eq!(gd.field_value("serial").unwrap(), FieldValue::Text(String::from("serial")));
+        assert_eq!(
+            gd.field_value("pvserial").unwrap(),
+            FieldValue::Text(String::from("MFK0CE306Q"))
+        );
     }
 }

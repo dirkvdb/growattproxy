@@ -12,3 +12,4 @@ clap = { version = "4.0.18", features = ["derive"] }
 futures = "0.3.25"
 local-ip-address = "0.5.1"
 crc16 = "0.4.0"
+num-rational = "0.4"
