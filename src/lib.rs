@@ -1,14 +1,15 @@
 #![warn(clippy::unwrap_used)]
-pub mod proxy;
 pub mod dataprocessor;
+pub mod layouts;
+pub mod proxy;
 
-use std::{fmt, net::AddrParseError, array::TryFromSliceError, str::Utf8Error};
+use std::{array::TryFromSliceError, fmt, net::AddrParseError, str::Utf8Error};
 
 #[derive(Debug)]
 pub enum ProxyError {
     NetworkError(String),
     RuntimeError(String),
-    ParseError
+    ParseError,
 }
 
 impl fmt::Display for ProxyError {
@@ -26,7 +27,6 @@ impl From<std::io::Error> for ProxyError {
         ProxyError::NetworkError(format!("IO: {}", err))
     }
 }
-
 
 impl From<std::num::ParseIntError> for ProxyError {
     fn from(_: std::num::ParseIntError) -> Self {

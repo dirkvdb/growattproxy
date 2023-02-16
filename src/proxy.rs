@@ -1,9 +1,8 @@
-use std::io::Write;
-
-use crate::ProxyError;
+use crate::dataprocessor::GrowattData;
+use crate::{layouts, ProxyError};
 use log;
-use tokio::net::{TcpListener, TcpSocket, TcpStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
 pub struct GrowattProxy {
     address: String,
@@ -14,14 +13,13 @@ struct GrowattForwarder {
     pub stream: TcpStream,
 }
 
-
 impl GrowattForwarder {
     pub async fn new(address: String) -> Result<GrowattForwarder, ProxyError> {
         let addr = address.parse()?;
 
         let socket = TcpSocket::new_v4()?;
         let stream = socket.connect(addr).await?;
-        
+
         Ok(GrowattForwarder { stream })
     }
 }
@@ -40,8 +38,6 @@ impl GrowattProxy {
         loop {
             let (mut socket, _) = listener.accept().await?;
             let growatt_addr = self.growatt_address.to_owned();
-            
-            
 
             tokio::spawn(async move {
                 log::info!("Inverter connected");
@@ -51,7 +47,6 @@ impl GrowattProxy {
                 let mut growatt_data = Vec::new();
 
                 if let Ok(mut forwarder) = GrowattForwarder::new(growatt_addr).await {
-                    let mut index = 1;
                     loop {
                         tokio::select! {
                             Ok(n) = socket.read(&mut buf) =>  {
@@ -61,12 +56,12 @@ impl GrowattProxy {
                                 }
 
                                 if n > 128 {
-                                    let mut file = std::fs::OpenOptions::new().write(true).create(true).open(format!("c:/temp/growatt_{index}.bin")).unwrap();
-                                    file.write_all(&buf[..n]).unwrap();
-                                    index += 1;
+                                    if let Ok(data) = GrowattData::from_buffer(&mut growatt_data, &layouts::t065004x()) {
+                                        // Do something with the decoded data
+                                    }
                                 }
 
-                                log::info!("Got inverter data: size {} index {}", n, index - 1);
+                                log::info!("Got inverter data: size {}", n);
                                 growatt_data.extend_from_slice(&buf[..n]);
 
                                 // Forward data to the growatt server if we are connected
@@ -81,7 +76,7 @@ impl GrowattProxy {
                                 if n == 0 {
                                     return;
                                 }
-                                
+
                                 if let Err(err) = socket.write_all(&growatt_buf[..n]).await {
                                     log::warn!("Failed to forward response from Growatt server: {err}");
                                     return;
@@ -89,16 +84,10 @@ impl GrowattProxy {
                             }
                         }
                     }
-
                 } else {
                     log::warn!("Failed to connect to growatt server, data will not be forwarded");
-
                 }
-
-                
-                
             });
         }
     }
-
 }
