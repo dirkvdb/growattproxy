@@ -1,7 +1,11 @@
 #![warn(clippy::unwrap_used)]
 pub mod dataprocessor;
 pub mod layouts;
+pub mod mqtt;
 pub mod proxy;
+
+#[cfg(feature = "sniffer")]
+pub mod sniffer;
 
 use std::{array::TryFromSliceError, fmt, net::AddrParseError, str::Utf8Error};
 
@@ -55,5 +59,11 @@ impl From<TryFromSliceError> for ProxyError {
 impl From<Utf8Error> for ProxyError {
     fn from(_: Utf8Error) -> Self {
         ProxyError::ParseError
+    }
+}
+
+impl From<rumqttc::ClientError> for ProxyError {
+    fn from(err: rumqttc::ClientError) -> Self {
+        ProxyError::RuntimeError(format!("MQTT Error: {err}"))
     }
 }

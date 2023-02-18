@@ -27,8 +27,8 @@ pub enum FieldValue {
 
 #[derive(Clone)]
 pub struct Field {
-    name: String,
-    value: FieldValue,
+    pub name: String,
+    pub value: FieldValue,
 }
 
 impl Field {
@@ -79,7 +79,7 @@ impl LayoutSpecification {
 }
 
 pub struct GrowattData {
-    fields: Vec<Field>,
+    pub fields: Vec<Field>,
 }
 
 impl GrowattData {
