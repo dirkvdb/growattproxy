@@ -1,4 +1,5 @@
 use crate::dataprocessor::GrowattData;
+use crate::mqtt;
 use crate::{layouts, ProxyError};
 use log;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -57,7 +58,9 @@ impl GrowattProxy {
 
                                 if n > 128 {
                                     if let Ok(data) = GrowattData::from_buffer(&mut growatt_data, &layouts::t065004x()) {
-                                        // Do something with the decoded data
+                                        if let Err(err) = mqtt::publish_data(&data).await {
+                                            log::warn!("Failed to publish MQTT data: {err}");
+                                        }
                                     }
                                 }
 
