@@ -1,6 +1,7 @@
 #![warn(clippy::unwrap_used)]
 use clap::Parser;
 use env_logger::{Env, TimestampPrecision};
+use growattproxy::sniffer;
 
 #[derive(Parser, Debug)]
 #[clap(name = "growwatproxy", about = "The growatt data upload proxy")]
@@ -19,6 +20,7 @@ fn main() {
 
     #[cfg(feature = "sniffer")]
     log::info!("Sniff sniff");
+    sniffer::sniff(opt.addr.unwrap().as_str());
 
     #[cfg(not(feature = "sniffer"))]
     println!("Sniffing support not enabled");

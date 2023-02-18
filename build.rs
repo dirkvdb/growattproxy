@@ -5,7 +5,8 @@ use std::env;
 fn main() {
     if env::var_os("CARGO_FEATURE_SNIFFER").is_some() {
         let mut cfg = Config::new("libpcap");
-        cfg.define("DISABLE_NETMAP", "ON")
+        cfg.define("BUILD_SHARED_LIBS", "OFF")
+            .define("DISABLE_NETMAP", "ON")
             .define("DISABLE_BLUETOOTH", "ON")
             .define("DISABLE_DBUS", "ON")
             .define("DISABLE_RDMA", "ON")
@@ -27,10 +28,16 @@ fn main() {
             cfg.define("YACC_EXECUTABLE", yacc_path);
         }
 
-        let dst = cfg.build().join("lib").join("x64");
+        let mut dst = cfg.build().join("lib");
+
+        #[cfg(target_os = "windows")]
+        dst.join("x64");
 
         println!("cargo:rustc-link-search=native={}", dst.display());
+        #[cfg(target_os = "windows")]
         println!("cargo:rustc-link-lib=static=pcap_static");
+        #[cfg(not(target_os = "windows"))]
+        println!("cargo:rustc-link-lib=static=pcap");
     }
 
     println!("cargo:rerun-if-changed=build.rs");
