@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use std::iter::zip;
 
 use crc16::{State, MODBUS};
@@ -9,6 +10,7 @@ const HEADER_SIZE: usize = 8;
 
 pub enum FieldType {
     Text,
+    Date,
     Number(i64),
 }
 
@@ -22,6 +24,7 @@ pub struct FieldSpecification {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum FieldValue {
     Text(String),
+    Date(DateTime<Utc>),
     Number(Rational64),
 }
 
@@ -36,6 +39,13 @@ impl Field {
         Field {
             name: String::from(name),
             value: FieldValue::Text(String::from(value)),
+        }
+    }
+
+    fn date(name: &str, date: DateTime<Utc>) -> Field {
+        Field {
+            name: String::from(name),
+            value: FieldValue::Date(date),
         }
     }
 
@@ -54,6 +64,15 @@ impl FieldSpecification {
             offset: offset / 2,
             length,
             field_type: FieldType::Text,
+        }
+    }
+
+    pub fn date(name: &str, offset: usize) -> FieldSpecification {
+        FieldSpecification {
+            name: name.to_string(),
+            offset: offset / 2,
+            length: 12,
+            field_type: FieldType::Date,
         }
     }
 
@@ -79,12 +98,16 @@ impl LayoutSpecification {
 }
 
 pub struct GrowattData {
+    pub buffered: bool,
     pub fields: Vec<Field>,
 }
 
 impl GrowattData {
     fn new() -> GrowattData {
-        GrowattData { fields: Vec::new() }
+        GrowattData {
+            buffered: false,
+            fields: Vec::new(),
+        }
     }
 
     pub fn field_value(&self, name: &str) -> Option<FieldValue> {
@@ -93,6 +116,10 @@ impl GrowattData {
 
     fn add_text_field(&mut self, name: &str, value: &str) {
         self.fields.push(Field::text(name, value));
+    }
+
+    fn add_date_field(&mut self, name: &str, date: DateTime<Utc>) {
+        self.fields.push(Field::date(name, date));
     }
 
     fn add_number_field(&mut self, name: &str, value: Rational64) {
@@ -136,15 +163,17 @@ impl GrowattData {
         Ok(())
     }
 
-    fn check_header(header: &[u8; HEADER_SIZE]) -> Result<(), ProxyError> {
+    fn check_header(header: &[u8; HEADER_SIZE]) -> Result<bool, ProxyError> {
         log::debug!("Header: {:02x?}", header);
 
         let is_smart_meter = header[7] == 0x20 || header[7] == 0x1b;
         log::debug!("Smart meter: {is_smart_meter}");
+        let is_buffered = header[7] == 0x50;
+        log::debug!("Buffered: {is_buffered}");
 
         log::debug!("Layout: T{:02x}{:02x}{:02x}", header[3], header[6], header[7]);
 
-        Ok(())
+        Ok(is_buffered)
     }
 
     pub fn from_buffer(growatt_data: &mut [u8], spec: &LayoutSpecification) -> Result<GrowattData, ProxyError> {
@@ -153,14 +182,14 @@ impl GrowattData {
             return Err(ProxyError::ParseError);
         }
 
+        let mut result = GrowattData::new();
+
         GrowattData::validate_integity(growatt_data)?;
-        GrowattData::check_header(&growatt_data[0..8].try_into()?)?;
+        result.buffered = GrowattData::check_header(&growatt_data[0..8].try_into()?)?;
 
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);
         }
-
-        let mut result = GrowattData::new();
 
         for field in &spec.fields {
             let data_slice = &growatt_data[field.offset..field.offset + field.length];
@@ -168,6 +197,11 @@ impl GrowattData {
                 FieldType::Text => {
                     let val = std::str::from_utf8(&data_slice)?;
                     result.add_text_field(field.name.as_str(), val);
+                }
+
+                FieldType::Date => {
+                    //result.add_text_field(field.name.as_str(), val);
+                    result.add_date_field(field.name.as_str(), Utc::now());
                 }
 
                 FieldType::Number(divide) => {

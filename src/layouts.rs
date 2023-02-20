@@ -5,7 +5,7 @@ pub fn t065004x() -> LayoutSpecification {
         true,
         Vec::from([
             FieldSpecification::text("pvserial", 76, 10),
-            FieldSpecification::number("date", 136, 1, 10),
+            FieldSpecification::date("date", 136),
             FieldSpecification::number("pvstatus", 158, 2, 1),
             FieldSpecification::number("pvpowerin", 162, 4, 10),
             FieldSpecification::number("pv1voltage", 170, 2, 10),

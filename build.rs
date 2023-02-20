@@ -28,6 +28,7 @@ fn main() {
             cfg.define("YACC_EXECUTABLE", yacc_path);
         }
 
+        #[allow(unused_mut)]
         let mut dst = cfg.build().join("lib");
 
         #[cfg(target_os = "windows")]

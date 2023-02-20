@@ -1,18 +1,25 @@
 #![warn(clippy::unwrap_used)]
 use clap::Parser;
 use env_logger::{Env, TimestampPrecision};
-use growattproxy::proxy;
+use growattproxy::proxy::{self, GrowattProxyConfig};
 
 #[derive(Parser, Debug)]
 #[clap(name = "growwatproxy", about = "The growatt data upload proxy")]
 struct Opt {
     // set the listen addr
-    #[clap(short = 'a', long = "addr")]
-    addr: Option<String>,
+    #[clap(short = 'a', long = "addr", default_value = "0.0.0.0:5279")]
+    addr: String,
 
     // set the growatt addr
-    #[clap(short = 'g', long = "growatt")]
-    growatt: Option<String>,
+    #[clap(short = 'g', long = "growatt", default_value = "47.91.67.66:5279")]
+    growatt_addr: String,
+
+    // set the mqtt addr
+    #[clap(long = "mqtt-addr")]
+    mqtt_addr: Option<String>,
+
+    #[clap(long = "mqtt-port", default_value_t = 1883)]
+    mqtt_port: u16,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -23,10 +30,13 @@ async fn main() {
         .format_timestamp(Some(TimestampPrecision::Millis))
         .init();
 
-    let proxy_addr = opt.addr.unwrap_or(String::from("0.0.0.0:5279"));
-    let growatt_addr = opt.growatt.unwrap_or(String::from("47.91.67.66:5279"));
-    log::debug!("Run server on: {proxy_addr}");
+    let cfg = GrowattProxyConfig {
+        listen_address: opt.addr,
+        growatt_address: opt.growatt_addr,
+        mqtt_address: opt.mqtt_addr,
+        mqtt_port: opt.mqtt_port,
+    };
 
-    proxy::GrowattProxy::new(proxy_addr.as_str(), growatt_addr.as_str()).run().await.expect("Failed to run proxy");
-
+    log::debug!("Run server on: {}", cfg.listen_address);
+    proxy::GrowattProxy::new(cfg).run().await.expect("Failed to run proxy");
 }

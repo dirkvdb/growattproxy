@@ -67,3 +67,9 @@ impl From<rumqttc::ClientError> for ProxyError {
         ProxyError::RuntimeError(format!("MQTT Error: {err}"))
     }
 }
+
+impl From<rumqttc::ConnectionError> for ProxyError {
+    fn from(err: rumqttc::ConnectionError) -> Self {
+        ProxyError::RuntimeError(format!("MQTT Connection error: {err}"))
+    }
+}

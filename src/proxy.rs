@@ -1,13 +1,21 @@
 use crate::dataprocessor::GrowattData;
-use crate::mqtt;
+use crate::mqtt::{self, MqttConfig};
 use crate::{layouts, ProxyError};
 use log;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
+pub struct GrowattProxyConfig {
+    pub listen_address: String,
+    pub growatt_address: String,
+    pub mqtt_address: Option<String>,
+    pub mqtt_port: u16,
+}
+
 pub struct GrowattProxy {
     address: String,
     growatt_address: String,
+    mqtt_config: Option<MqttConfig>,
 }
 
 struct GrowattForwarder {
@@ -26,10 +34,21 @@ impl GrowattForwarder {
 }
 
 impl GrowattProxy {
-    pub fn new(proxy_address: &str, growatt_address: &str) -> GrowattProxy {
+    pub fn new(cfg: GrowattProxyConfig) -> GrowattProxy {
+        let mqtt_config;
+        if let Some(addr) = cfg.mqtt_address {
+            mqtt_config = Some(MqttConfig {
+                server: addr,
+                port: cfg.mqtt_port,
+            });
+        } else {
+            mqtt_config = None;
+        }
+
         GrowattProxy {
-            address: String::from(proxy_address),
-            growatt_address: String::from(growatt_address),
+            address: String::from(cfg.listen_address),
+            growatt_address: String::from(cfg.growatt_address),
+            mqtt_config,
         }
     }
 
@@ -38,7 +57,11 @@ impl GrowattProxy {
 
         loop {
             let (mut socket, _) = listener.accept().await?;
+            socket.set_nodelay(true)?;
+
             let growatt_addr = self.growatt_address.to_owned();
+
+            let mqtt_config = self.mqtt_config.to_owned();
 
             tokio::spawn(async move {
                 log::info!("Inverter connected");
@@ -58,8 +81,10 @@ impl GrowattProxy {
 
                                 if n > 128 {
                                     if let Ok(data) = GrowattData::from_buffer(&mut growatt_data, &layouts::t065004x()) {
-                                        if let Err(err) = mqtt::publish_data(&data).await {
-                                            log::warn!("Failed to publish MQTT data: {err}");
+                                        if let Some(cfg) = mqtt_config.as_ref() {
+                                            if let Err(err) = mqtt::publish_data(&data, &cfg).await {
+                                                log::warn!("Failed to publish MQTT data: {err}");
+                                            }
                                         }
                                     }
                                 }

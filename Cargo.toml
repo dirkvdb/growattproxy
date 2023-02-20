@@ -19,7 +19,11 @@ num-rational = "0.4"
 rumqttc = "0.20.0"
 serde_json = "1.0"
 pcap = { version = "1.0.0", optional = true }
+chrono = "0.4"
 
 [build-dependencies]
 cmake = "0.1"
 cc = "1.0"
+
+[package.metadata.cross.target.x86_64-unknown-linux-gnu]
+dockerfile = "./docker/Dockerfile"
