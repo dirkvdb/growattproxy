@@ -37,6 +37,7 @@ impl GrowattProxy {
     pub fn new(cfg: GrowattProxyConfig) -> GrowattProxy {
         let mqtt_config;
         if let Some(addr) = cfg.mqtt_address {
+            log::info!("MQTT configuration: {}:{}", addr, cfg.mqtt_port);
             mqtt_config = Some(MqttConfig {
                 server: addr,
                 port: cfg.mqtt_port,
@@ -80,8 +81,9 @@ impl GrowattProxy {
                                 }
 
                                 if n > 128 {
-                                    if let Ok(data) = GrowattData::from_buffer(&mut growatt_data, &layouts::t065004x()) {
+                                    if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
                                         if let Some(cfg) = mqtt_config.as_ref() {
+                                            log::debug!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
                                             if let Err(err) = mqtt::publish_data(&data, &cfg).await {
                                                 log::warn!("Failed to publish MQTT data: {err}");
                                             }
