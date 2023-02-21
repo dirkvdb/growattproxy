@@ -27,7 +27,7 @@ fn growatt_data_json(data: &GrowattData) -> String {
             FieldValue::Date(date) => {
                 map.insert(
                     field.name.clone(),
-                    Value::String(date.to_rfc3339_opts(SecondsFormat::Secs, false)),
+                    Value::String(date.to_rfc3339_opts(SecondsFormat::Secs, true)),
                 );
             }
             FieldValue::Number(num) => {
@@ -64,8 +64,8 @@ pub async fn publish_data(data: &GrowattData, cfg: &MqttConfig) -> Result<(), Pr
     Ok(())
 }
 
-pub fn publish_data_sync(data: &GrowattData) -> Result<(), ProxyError> {
-    let mut mqttoptions = MqttOptions::new("growattproxy", "192.168.1.13", 1883);
+pub fn publish_data_sync(data: &GrowattData, cfg: &MqttConfig) -> Result<(), ProxyError> {
+    let mut mqttoptions = MqttOptions::new("growattproxy", cfg.server.as_str(), cfg.port);
     mqttoptions.set_keep_alive(Duration::from_secs(25));
 
     let (mut client, mut connection) = Client::new(mqttoptions, 10);
