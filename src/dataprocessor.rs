@@ -87,27 +87,55 @@ impl FieldSpecification {
 }
 
 pub struct LayoutSpecification {
+    id: String,
     decrypt: bool,
     fields: Vec<FieldSpecification>,
 }
 
 impl LayoutSpecification {
-    pub fn new(decrypt: bool, fields: Vec<FieldSpecification>) -> LayoutSpecification {
-        LayoutSpecification { decrypt, fields }
+    pub fn new(id: &str, decrypt: bool, fields: Vec<FieldSpecification>) -> LayoutSpecification {
+        LayoutSpecification {
+            id: String::from(id),
+            decrypt,
+            fields,
+        }
     }
 }
 
 pub struct GrowattData {
-    pub buffered: bool,
+    pub header: [u8; HEADER_SIZE],
+    pub layout_spec: String,
     pub fields: Vec<Field>,
 }
 
 impl GrowattData {
-    fn new() -> GrowattData {
+    fn new(layout_spec: &str) -> GrowattData {
         GrowattData {
-            buffered: false,
+            header: [0; HEADER_SIZE],
+            layout_spec: String::from(layout_spec),
             fields: Vec::new(),
         }
+    }
+
+    pub fn packet_index(&self) -> u16 {
+        u16::from_be_bytes(self.header[0..2].try_into().unwrap())
+    }
+
+    pub fn is_buffered(&self) -> bool {
+        self.header[7] == 0x50
+    }
+
+    fn is_smart_meter(&self) -> bool {
+        self.header[7] == 0x20 || self.header[7] == 0x1b
+    }
+
+    pub fn layout(&self) -> String {
+        let mut layout = format!("T{:02x}{:02x}{:02x}", self.header[3], self.header[6], self.header[7]);
+        if self.is_smart_meter() {
+            layout.push('X');
+        }
+
+        layout
     }
 
     pub fn field_value(&self, name: &str) -> Option<FieldValue> {
@@ -163,12 +191,6 @@ impl GrowattData {
         Ok(())
     }
 
-    fn process_header(&mut self, header: &[u8; HEADER_SIZE]) -> Result<(), ProxyError> {
-        self.buffered = header[7] == 0x50;
-        log::debug!("Buffered: {}", self.buffered);
-        Ok(())
-    }
-
     pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<GrowattData, ProxyError> {
         if growatt_data.len() < 12 {
             // ACK message
@@ -176,10 +198,10 @@ impl GrowattData {
         }
 
         let spec = layouts::detect_layout(&growatt_data[0..8].try_into()?);
-        let mut result = GrowattData::new();
+        let mut result = GrowattData::new(spec.id.as_str());
+        result.header = growatt_data[0..8].try_into()?;
 
         GrowattData::validate_integity(growatt_data)?;
-        result.process_header(&growatt_data[0..8].try_into()?)?;
 
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);
@@ -228,10 +250,10 @@ impl GrowattData {
             return Err(ProxyError::ParseError);
         }
 
-        let mut result = GrowattData::new();
+        let mut result = GrowattData::new(spec.id.as_str());
+        result.header = growatt_data[0..8].try_into()?;
 
         GrowattData::validate_integity(growatt_data)?;
-        result.process_header(&growatt_data[0..8].try_into()?)?;
 
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);

@@ -2,6 +2,7 @@ use crate::dataprocessor::{FieldSpecification, LayoutSpecification};
 
 pub fn t065004x() -> LayoutSpecification {
     LayoutSpecification::new(
+        "T065004X",
         true,
         Vec::from([
             FieldSpecification::text("pvserial", 76, 10),
@@ -43,6 +44,7 @@ pub fn t065004x() -> LayoutSpecification {
 
 pub fn t06nnnnx() -> LayoutSpecification {
     LayoutSpecification::new(
+        "t06NNNNX",
         true,
         Vec::from([
             FieldSpecification::text("pvserial", 76, 10),
@@ -74,7 +76,6 @@ pub fn detect_layout(header: &[u8; 8]) -> LayoutSpecification {
         layout.push('X');
     }
 
-    log::debug!("Layout: {layout}");
     match layout.as_str() {
         "T065004X" => t065004x(),
         _ => t06nnnnx(),
