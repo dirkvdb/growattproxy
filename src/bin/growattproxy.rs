@@ -7,18 +7,28 @@ use growattproxy::proxy::{self, GrowattProxyConfig};
 #[clap(name = "growwatproxy", about = "The growatt data upload proxy")]
 struct Opt {
     // set the listen addr
-    #[clap(short = 'a', long = "addr", default_value = "0.0.0.0:5279")]
+    #[clap(
+        short = 'a',
+        long = "addr",
+        env = "GP_LISTEN_ADDRESS",
+        default_value = "0.0.0.0:5279"
+    )]
     addr: String,
 
     // set the growatt addr
-    #[clap(short = 'g', long = "growatt", default_value = "47.91.67.66:5279")]
+    #[clap(
+        short = 'g',
+        long = "growatt",
+        env = "GP_GROWATT_ADDRESS",
+        default_value = "47.91.67.66:5279"
+    )]
     growatt_addr: String,
 
     // set the mqtt addr
-    #[clap(long = "mqtt-addr")]
+    #[clap(long = "mqtt-addr", env = "GP_MQTT_ADDRESS")]
     mqtt_addr: Option<String>,
 
-    #[clap(long = "mqtt-port", default_value_t = 1883)]
+    #[clap(long = "mqtt-port", env = "GP_MQTT_PORT", default_value_t = 1883)]
     mqtt_port: u16,
 }
 
