@@ -191,7 +191,7 @@ impl GrowattData {
         Ok(())
     }
 
-    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<GrowattData, ProxyError> {
+    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<Option<GrowattData>, ProxyError> {
         if growatt_data.len() < 12 {
             // ACK message
             return Err(ProxyError::ParseError);
@@ -207,7 +207,18 @@ impl GrowattData {
             GrowattData::decrypt(growatt_data);
         }
 
+        let layout = result.layout();
+        if layout == "T065103" || layout == "T065129" {
+            // ignore these layouts that do not contain power data
+            return Ok(None);
+        }
+
         for field in &spec.fields {
+            if field.offset + field.length >= growatt_data.len() {
+                log::warn!("Field '{}' out of range", field.name);
+                continue;
+            }
+
             let data_slice = &growatt_data[field.offset..field.offset + field.length];
             match field.field_type {
                 FieldType::Text => {
@@ -241,7 +252,7 @@ impl GrowattData {
             }
         }
 
-        Ok(result)
+        Ok(Some(result))
     }
 
     pub fn from_buffer(growatt_data: &mut [u8], spec: &LayoutSpecification) -> Result<GrowattData, ProxyError> {

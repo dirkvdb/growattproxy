@@ -75,24 +75,28 @@ impl GrowattProxy {
                     loop {
                         tokio::select! {
                             Ok(n) = socket.read(&mut buf) =>  {
-                                log::info!("Data from inverter: {}", n);
                                 if n == 0 {
                                     return;
                                 }
 
+                                log::info!("Got inverter data: size {}", n);
+                                growatt_data.clear();
+                                growatt_data.extend_from_slice(&buf[..n]);
+
                                 if n > 128 {
-                                    if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
-                                        if let Some(cfg) = mqtt_config.as_ref() {
-                                            log::debug!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
-                                            if let Err(err) = mqtt::publish_data(&data, &cfg).await {
-                                                log::warn!("Failed to publish MQTT data: {err}");
+                                    match GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
+                                        Ok(Some(data)) => {
+                                            if let Some(cfg) = mqtt_config.as_ref() {
+                                                log::debug!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
+                                                if let Err(err) = mqtt::publish_data(&data, &cfg).await {
+                                                    log::warn!("Failed to publish MQTT data: {err}");
+                                                }
                                             }
                                         }
+                                        Ok(None) =>log::debug!("Skipping uninteresting growatt frame"),
+                                        Err(err) => log::warn!("Invalid growatt data: {}", err)
                                     }
                                 }
-
-                                log::info!("Got inverter data: size {}", n);
-                                growatt_data.extend_from_slice(&buf[..n]);
 
                                 // Forward data to the growatt server if we are connected
                                 if let Err(err) = forwarder.stream.write_all(&buf[..n]).await {

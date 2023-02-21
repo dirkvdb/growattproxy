@@ -50,9 +50,9 @@ pub fn sniff(cfg: &GrowattSnifferConfig) {
         log::debug!("got packet: {} {}", packet.header.len, packet.data.len());
         if packet.data.len() > 128 {
             let mut data = Vec::from(packet.data);
-            if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut data[56..]) {
+            if let Ok(Some(data)) = GrowattData::from_buffer_auto_detect_layout(&mut data[56..]) {
                 process_data(&data, cfg, 56);
-            } else if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut data[68..]) {
+            } else if let Ok(Some(data)) = GrowattData::from_buffer_auto_detect_layout(&mut data[68..]) {
                 process_data(&data, cfg, 68);
             } else {
                 log::warn!("invalid growatt data");
