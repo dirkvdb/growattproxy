@@ -4,7 +4,7 @@ use std::iter::zip;
 use crc16::{State, MODBUS};
 use num_rational::Rational64;
 
-use crate::ProxyError;
+use crate::{layouts, ProxyError};
 
 const HEADER_SIZE: usize = 8;
 
@@ -163,17 +163,63 @@ impl GrowattData {
         Ok(())
     }
 
-    fn check_header(header: &[u8; HEADER_SIZE]) -> Result<bool, ProxyError> {
-        log::debug!("Header: {:02x?}", header);
+    fn process_header(&mut self, header: &[u8; HEADER_SIZE]) -> Result<(), ProxyError> {
+        self.buffered = header[7] == 0x50;
+        log::debug!("Buffered: {}", self.buffered);
+        Ok(())
+    }
 
-        let is_smart_meter = header[7] == 0x20 || header[7] == 0x1b;
-        log::debug!("Smart meter: {is_smart_meter}");
-        let is_buffered = header[7] == 0x50;
-        log::debug!("Buffered: {is_buffered}");
+    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<GrowattData, ProxyError> {
+        if growatt_data.len() < 12 {
+            // ACK message
+            return Err(ProxyError::ParseError);
+        }
 
-        log::debug!("Layout: T{:02x}{:02x}{:02x}", header[3], header[6], header[7]);
+        let spec = layouts::detect_layout(&growatt_data[0..8].try_into()?);
+        let mut result = GrowattData::new();
 
-        Ok(is_buffered)
+        GrowattData::validate_integity(growatt_data)?;
+        result.process_header(&growatt_data[0..8].try_into()?)?;
+
+        if spec.decrypt {
+            GrowattData::decrypt(growatt_data);
+        }
+
+        for field in &spec.fields {
+            let data_slice = &growatt_data[field.offset..field.offset + field.length];
+            match field.field_type {
+                FieldType::Text => {
+                    let val = std::str::from_utf8(&data_slice)?;
+                    result.add_text_field(field.name.as_str(), val);
+                }
+
+                FieldType::Date => {
+                    //result.add_text_field(field.name.as_str(), val);
+                    result.add_date_field(field.name.as_str(), Utc::now());
+                }
+
+                FieldType::Number(divide) => {
+                    let val: i64;
+                    if field.length == 1 {
+                        val = u8::from_be_bytes(data_slice.try_into().expect("Invalid u8 length")) as i64;
+                    } else if field.length == 2 {
+                        val = u16::from_be_bytes(data_slice.try_into().expect("Invalid u16 length")) as i64;
+                    } else if field.length == 4 {
+                        val = u32::from_be_bytes(data_slice.try_into().expect("Invalid u32 length")) as i64;
+                    } else {
+                        return Err(ProxyError::RuntimeError(format!(
+                            "Invalid length for number: {}",
+                            field.length
+                        )));
+                    }
+
+                    assert!(divide != 0);
+                    result.add_number_field(field.name.as_str(), Rational64::new(val, divide));
+                }
+            }
+        }
+
+        Ok(result)
     }
 
     pub fn from_buffer(growatt_data: &mut [u8], spec: &LayoutSpecification) -> Result<GrowattData, ProxyError> {
@@ -185,7 +231,7 @@ impl GrowattData {
         let mut result = GrowattData::new();
 
         GrowattData::validate_integity(growatt_data)?;
-        result.buffered = GrowattData::check_header(&growatt_data[0..8].try_into()?)?;
+        result.process_header(&growatt_data[0..8].try_into()?)?;
 
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);

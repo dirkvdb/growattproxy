@@ -40,3 +40,43 @@ pub fn t065004x() -> LayoutSpecification {
         ]),
     )
 }
+
+pub fn t06nnnnx() -> LayoutSpecification {
+    LayoutSpecification::new(
+        true,
+        Vec::from([
+            FieldSpecification::text("pvserial", 76, 10),
+            FieldSpecification::date("date", 136),
+            FieldSpecification::number("pvstatus", 158, 2, 1),
+            FieldSpecification::number("pvpowerin", 162, 4, 10),
+            FieldSpecification::number("pv1voltage", 170, 2, 10),
+            FieldSpecification::number("pv1current", 174, 2, 10),
+            FieldSpecification::number("pv1watt", 178, 4, 10),
+            FieldSpecification::number("pv2voltage", 186, 2, 10),
+            FieldSpecification::number("pv2current", 190, 2, 10),
+            FieldSpecification::number("pv2watt", 194, 4, 10),
+            FieldSpecification::number("pvpowerout", 250, 4, 10),
+            FieldSpecification::number("pvfrequentie", 258, 2, 100),
+            FieldSpecification::number("pvgridvoltage", 262, 2, 10),
+            FieldSpecification::number("pvenergytoday", 354, 4, 10),
+            FieldSpecification::number("pvenergytotal", 362, 4, 10),
+            FieldSpecification::number("pvtemperature", 530, 2, 10),
+            FieldSpecification::number("pvipmtemperature", 534, 2, 10),
+        ]),
+    )
+}
+
+pub fn detect_layout(header: &[u8; 8]) -> LayoutSpecification {
+    let mut layout = format!("T{:02x}{:02x}{:02x}", header[3], header[6], header[7]);
+    let is_smart_meter = header[7] == 0x20 || header[7] == 0x1b;
+
+    if is_smart_meter {
+        layout.push('X');
+    }
+
+    log::debug!("Layout: {layout}");
+    match layout.as_str() {
+        "T065004X" => t065004x(),
+        _ => t06nnnnx(),
+    }
+}

@@ -1,6 +1,6 @@
 use std::{io::Write, path::Path};
 
-use crate::{dataprocessor::GrowattData, layouts, mqtt};
+use crate::{dataprocessor::GrowattData, mqtt};
 
 fn dump_packet(data: &[u8], filename: &str) {
     let path = Path::new("/volume1/data/").join(filename);
@@ -23,15 +23,19 @@ pub fn sniff(address: &str, port: u16) {
         log::debug!("got packet: {} {}", packet.header.len, packet.data.len());
         if packet.data.len() > 128 {
             let mut data = Vec::from(packet.data);
-            if let Ok(data) = GrowattData::from_buffer(&mut data[56..], &layouts::t065004x()) {
+            if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut data[56..]) {
                 log::info!("valid growatt data (56)");
-                if let Err(err) = mqtt::publish_data_sync(&data) {
-                    log::warn!("Failed to publish MQTT data: {err}");
+                if !data.buffered {
+                    if let Err(err) = mqtt::publish_data_sync(&data) {
+                        log::warn!("Failed to publish MQTT data: {err}");
+                    }
                 }
-            } else if let Ok(data) = GrowattData::from_buffer(&mut data[68..], &layouts::t065004x()) {
+            } else if let Ok(data) = GrowattData::from_buffer_auto_detect_layout(&mut data[68..]) {
                 log::info!("valid growatt data (68)");
-                if let Err(err) = mqtt::publish_data_sync(&data) {
-                    log::warn!("Failed to publish MQTT data: {err}");
+                if !data.buffered {
+                    if let Err(err) = mqtt::publish_data_sync(&data) {
+                        log::warn!("Failed to publish MQTT data: {err}");
+                    }
                 }
             } else {
                 log::warn!("invalid growatt data");
