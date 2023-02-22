@@ -1,6 +1,6 @@
 use crate::dataprocessor::GrowattData;
 use crate::mqtt::{self, MqttConfig};
-use crate::{layouts, ProxyError};
+use crate::ProxyError;
 use log;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
@@ -79,7 +79,7 @@ impl GrowattProxy {
                                     return;
                                 }
 
-                                log::info!("Got inverter data: size {}", n);
+                                log::debug!("Got inverter data: size {}", n);
                                 growatt_data.clear();
                                 growatt_data.extend_from_slice(&buf[..n]);
 
@@ -87,7 +87,7 @@ impl GrowattProxy {
                                     match GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
                                         Ok(Some(data)) => {
                                             if let Some(cfg) = mqtt_config.as_ref() {
-                                                log::debug!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
+                                                log::info!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
                                                 if let Err(err) = mqtt::publish_data(&data, &cfg).await {
                                                     log::warn!("Failed to publish MQTT data: {err}");
                                                 }
@@ -106,7 +106,7 @@ impl GrowattProxy {
                             }
 
                             Ok(n) = forwarder.stream.read(&mut growatt_buf) => {
-                                log::info!("Response from growatt: {}", n);
+                                log::debug!("Response from growatt: {}", n);
                                 if n == 0 {
                                     return;
                                 }

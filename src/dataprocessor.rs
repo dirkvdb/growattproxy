@@ -215,7 +215,7 @@ impl GrowattData {
 
         for field in &spec.fields {
             if field.offset + field.length >= growatt_data.len() {
-                log::warn!("Field '{}' out of range", field.name);
+                log::debug!("Field '{}' out of range", field.name);
                 continue;
             }
 
