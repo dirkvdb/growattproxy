@@ -60,6 +60,7 @@ pub fn t06nnnnx() -> LayoutSpecification {
             FieldSpecification::number("pvpowerout", 250, 4, 10),
             FieldSpecification::number("pvfrequentie", 258, 2, 100),
             FieldSpecification::number("pvgridvoltage", 262, 2, 10),
+            FieldSpecification::number("pvgridcurrent", 266, 2, 10),
             FieldSpecification::number("pvenergytoday", 354, 4, 10),
             FieldSpecification::number("pvenergytotal", 362, 4, 10),
             FieldSpecification::number("pvtemperature", 530, 2, 10),

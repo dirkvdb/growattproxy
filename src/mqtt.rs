@@ -8,24 +8,13 @@ use crate::{
     ProxyError,
 };
 
-struct PvData {
-    device: String,
-    datalog_serial: String,
-    pv_serial: String,
-    pv_powerout: f32,
-    pv_energy_today: f32,
-    pv_energy_total: f32,
-    pv_voltage: f32,
-    pv_current: f32,
-}
-
 #[derive(Clone)]
 pub struct MqttConfig {
     pub server: String,
     pub port: u16,
 }
 
-fn field_value_to_json_value(val: &FieldValue, factor: Option<f64>) -> Option<serde_json::Value> {
+pub fn field_value_to_json_value(val: &FieldValue, factor: Option<f64>) -> Option<serde_json::Value> {
     use serde_json::{Number, Value};
 
     match val {
@@ -44,7 +33,9 @@ fn field_value_to_json_value(val: &FieldValue, factor: Option<f64>) -> Option<se
                 } else {
                     return Some(Value::Number(Number::from(*num.numer())));
                 }
-            } else if let Some(val) = Number::from_f64(*num.numer() as f64 / *num.denom() as f64) {
+            } else if let Some(val) =
+                Number::from_f64((*num.numer() as f64 / *num.denom() as f64) * factor.unwrap_or(1.0))
+            {
                 return Some(Value::Number(val));
             }
         }

@@ -17,7 +17,7 @@ local-ip-address = "0.5.1"
 crc16 = "0.4.0"
 num-rational = "0.4"
 rumqttc = "0.20.0"
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 pcap = { version = "1.0.0", optional = true }
 chrono = "0.4"
 
