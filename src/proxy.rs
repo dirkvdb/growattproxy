@@ -85,15 +85,18 @@ impl GrowattProxy {
 
                                 if n > 128 {
                                     match GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
-                                        Ok(Some(data)) => {
-                                            if let Some(cfg) = mqtt_config.as_ref() {
-                                                log::info!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
-                                                if let Err(err) = mqtt::publish_data(&data, &cfg).await {
-                                                    log::warn!("Failed to publish MQTT data: {err}");
+                                        Ok(data) => {
+                                            if data.has_data() {
+                                                if let Some(cfg) = mqtt_config.as_ref() {
+                                                    log::info!("Growatt data: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
+                                                    if let Err(err) = mqtt::publish_data(&data, &cfg).await {
+                                                        log::warn!("Failed to publish MQTT data: {err}");
+                                                    }
                                                 }
+                                            } else {
+                                                log::info!("Growatt data ignored: [#{}] {} -> {} (Buffered: {})", data.packet_index(), data.layout(), data.layout_spec, data.is_buffered());
                                             }
                                         }
-                                        Ok(None) =>log::debug!("Skipping uninteresting growatt frame"),
                                         Err(err) => log::warn!("Invalid growatt data: {}", err)
                                     }
                                 }

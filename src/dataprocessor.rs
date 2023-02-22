@@ -138,6 +138,14 @@ impl GrowattData {
         layout
     }
 
+    pub fn has_data(&self) -> bool {
+        !self.fields.is_empty()
+    }
+
+    pub fn field_count(&self) -> usize {
+        self.fields.len()
+    }
+
     pub fn field_value(&self, name: &str) -> Option<FieldValue> {
         return self.fields.iter().find(|&f| f.name == name).map(|f| f.value.clone());
     }
@@ -191,7 +199,7 @@ impl GrowattData {
         Ok(())
     }
 
-    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<Option<GrowattData>, ProxyError> {
+    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<GrowattData, ProxyError> {
         if growatt_data.len() < 12 {
             // ACK message
             return Err(ProxyError::ParseError);
@@ -210,7 +218,7 @@ impl GrowattData {
         let layout = result.layout();
         if layout == "T065103" || layout == "T065129" {
             // ignore these layouts that do not contain power data
-            return Ok(None);
+            return Ok(result);
         }
 
         for field in &spec.fields {
@@ -252,7 +260,7 @@ impl GrowattData {
             }
         }
 
-        Ok(Some(result))
+        Ok(result)
     }
 
     pub fn from_buffer(growatt_data: &mut [u8], spec: &LayoutSpecification) -> Result<GrowattData, ProxyError> {
