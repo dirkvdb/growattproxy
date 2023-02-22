@@ -1,7 +1,7 @@
 use std::{io::Write, path::Path};
 
 use crate::{
-    dataprocessor::GrowattData,
+    dataprocessor::{FieldValue, GrowattData},
     mqtt::{self, MqttConfig},
 };
 
@@ -26,6 +26,28 @@ fn process_data(data: &GrowattData, cfg: &GrowattSnifferConfig, offset: u16) {
         data.layout_spec,
         offset,
     );
+
+    for field in &data.fields {
+        match &field.value {
+            FieldValue::Text(str) => {
+                log::info!("{}: {}", field.name, str);
+            }
+            FieldValue::Date(date) => {
+                log::info!(
+                    "{}: {}",
+                    field.name,
+                    date.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+                );
+            }
+            FieldValue::Number(num) => {
+                if *num.denom() == 1 {
+                    log::info!("{}: {}", field.name, *num.numer());
+                } else {
+                    log::info!("{}: {}", field.name, *num.numer() as f64 / *num.denom() as f64);
+                }
+            }
+        }
+    }
 
     if (!data.is_buffered()) && cfg.mqtt.is_some() {
         if let Err(err) = mqtt::publish_data_sync(&data, cfg.mqtt.as_ref().unwrap()) {
