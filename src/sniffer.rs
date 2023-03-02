@@ -1,5 +1,3 @@
-use std::{io::Write, path::Path};
-
 use crate::{
     dataprocessor::{FieldValue, GrowattData},
     mqtt::{self, MqttConfig},
@@ -9,12 +7,6 @@ pub struct GrowattSnifferConfig {
     pub address: String,
     pub port: u16,
     pub mqtt: Option<MqttConfig>,
-}
-
-fn dump_packet(data: &[u8], filename: &str) {
-    let path = Path::new("/volume1/data/").join(filename);
-    let mut file = std::fs::OpenOptions::new().write(true).create(true).open(path).unwrap();
-    file.write_all(&data).unwrap();
 }
 
 fn process_data(data: &GrowattData, cfg: &GrowattSnifferConfig, offset: u16) {
@@ -82,7 +74,7 @@ pub fn sniff(cfg: &GrowattSnifferConfig) {
                 process_data(&data, cfg, 68);
             } else {
                 log::warn!("invalid growatt data");
-                dump_packet(&packet.data, format!("growatt_invalid_{index}.bin").as_str());
+                crate::dump_packet(&packet.data, format!("growatt_invalid_{index}.bin").as_str());
                 index += 1;
             }
         }

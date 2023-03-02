@@ -7,6 +7,7 @@ use num_rational::Rational64;
 use crate::{layouts, ProxyError};
 
 const HEADER_SIZE: usize = 8;
+const MAX_PV_POWER: f64 = 8000;
 
 pub enum FieldType {
     Text,
@@ -257,6 +258,15 @@ impl GrowattData {
                     assert!(divide != 0);
                     result.add_number_field(field.name.as_str(), Rational64::new(val, divide));
                 }
+            }
+        }
+
+        if let Some(FieldValue::Number(val)) = result.field_value("pvpowerout") {
+            let float_val: f64 = *val.numer() as f64 / *val.denom() as f64;
+            if float_val > MAX_PV_POWER {
+                return Err(ProxyError::RuntimeError(String::from(
+                    "Invalid PV power value: {float_val}",
+                )));
             }
         }
 
