@@ -84,7 +84,7 @@ impl GrowattProxy {
                                 growatt_data.extend_from_slice(&buf[..n]);
 
                                 if n > 128 {
-                                    match GrowattData::from_buffer_auto_detect_layout(&mut growatt_data) {
+                                    match GrowattData::from_buffer_auto_detect_layout(&mut growatt_data, None) {
                                         Ok(data) => {
                                             if data.has_data() {
                                                 if let Some(cfg) = mqtt_config.as_ref() {

@@ -4,10 +4,13 @@ use std::iter::zip;
 use crc16::{State, MODBUS};
 use num_rational::Rational64;
 
-use crate::{layouts, ProxyError};
+use crate::{
+    layouts::{self},
+    ProxyError,
+};
 
 const HEADER_SIZE: usize = 8;
-const MAX_PV_POWER: f64 = 8000;
+const MAX_PV_POWER: f64 = 8000.0;
 
 pub enum FieldType {
     Text,
@@ -33,6 +36,10 @@ pub enum FieldValue {
 pub struct Field {
     pub name: String,
     pub value: FieldValue,
+}
+
+fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack.windows(needle.len()).position(|window| window == needle)
 }
 
 impl Field {
@@ -91,14 +98,25 @@ pub struct LayoutSpecification {
     id: String,
     decrypt: bool,
     fields: Vec<FieldSpecification>,
+    offset: usize,
 }
 
 impl LayoutSpecification {
     pub fn new(id: &str, decrypt: bool, fields: Vec<FieldSpecification>) -> LayoutSpecification {
+        LayoutSpecification::new_with_offset(id, decrypt, fields, 0)
+    }
+
+    pub fn new_with_offset(
+        id: &str,
+        decrypt: bool,
+        fields: Vec<FieldSpecification>,
+        offset: usize,
+    ) -> LayoutSpecification {
         LayoutSpecification {
             id: String::from(id),
             decrypt,
             fields,
+            offset,
         }
     }
 }
@@ -200,7 +218,94 @@ impl GrowattData {
         Ok(())
     }
 
-    pub fn from_buffer_auto_detect_layout(growatt_data: &mut [u8]) -> Result<GrowattData, ProxyError> {
+    pub fn decrypt_data(growatt_data: &mut [u8]) {
+        if let Err(err) = GrowattData::validate_integity(growatt_data) {
+            log::warn!("Packet seems invalid: {err}");
+        }
+
+        GrowattData::decrypt(growatt_data);
+    }
+
+    pub fn analyze_data(growatt_data: &mut [u8], serial: Option<String>) -> Result<(), ProxyError> {
+        let mut result = GrowattData::new("Unknown");
+        result.header = growatt_data[0..8].try_into()?;
+
+        log::info!("Header: {} #{}", result.layout(), result.packet_index());
+        if let Err(_) = GrowattData::validate_integity(growatt_data) {
+            log::warn!("Packet already decrypted");
+        } else {
+            GrowattData::decrypt(growatt_data);
+        }
+
+        let mut offset = None;
+        if let Some(serial) = serial {
+            offset = find_subsequence(&growatt_data, serial.as_bytes());
+            if let Some(offset) = offset {
+                log::info!("Serial found at offset: {}", offset);
+
+                for i in offset..offset + 100 {
+                    let pv_offset = i + 6 + 17;
+                    let val = u32::from_be_bytes(
+                        growatt_data[pv_offset..pv_offset + 4]
+                            .try_into()
+                            .expect("Invalid u16 length"),
+                    ) as i64;
+                    log::info!("[{} {:x}] pvpowerout: {}", i + 6 + 17, i + 6 + 17, val);
+                }
+
+                // definedkey["pvpowerin"] = int(result_string[snstart+conf.offset*2+17*2:snstart+conf.offset*2+17*2+8],16)
+                // definedkey["pv1voltage"] = int(result_string[snstart+conf.offset*2+21*2:snstart+conf.offset*2+21*2+4],16)
+                // definedkey["pv1current"] = int(result_string[snstart+conf.offset*2+23*2:snstart+conf.offset*2+23*2+4],16)
+                // definedkey["pv1watt"]    = int(result_string[snstart+conf.offset*2+25*2:snstart+conf.offset*2+25*2+8],16)
+                // definedkey["pv2voltage"] = int(result_string[snstart+conf.offset*2+29*2:snstart+conf.offset*2+29*2+4],16)
+                // definedkey["pv2current"] = int(result_string[snstart+conf.offset*2+31*2:snstart+conf.offset*2+31*2+4],16)
+                // definedkey["pv2watt"]    = int(result_string[snstart+conf.offset*2+33*2:snstart+conf.offset*2+33*2+8],16)
+                // definedkey["pvpowerout"] = int(result_string[snstart+conf.offset*2+37*2:snstart+conf.offset*2+37*2+8],16)
+                // definedkey["pvfrequentie"] = int(result_string[snstart+conf.offset*2+41*2:snstart+conf.offset*2+41*2+4],16)
+                // definedkey["pvgridvoltage"] = int(result_string[snstart+conf.offset*2+43*2:snstart+conf.offset*2+43*2+4],16)
+                // definedkey["pvenergytoday"] = int(result_string[snstart+conf.offset*2+67*2:snstart+conf.offset*2+67*2+8],16)
+                // definedkey["pvenergytotal"] = int(result_string[snstart+conf.offset*2+71*2:snstart+conf.offset*2+71*2+8],16)
+                // definedkey["pvtemperature"] = int(result_string[snstart+conf.offset*2+79*2:snstart+conf.offset*2+79*2+4],16)
+                // definedkey["pvipmtemperature"] = int(result_string[snstart+conf.offset*2+97*2:snstart+conf.offset*2+97*2+4],16)
+            } else {
+                return Err(ProxyError::RuntimeError(String::from(
+                    "Serial not found in data packet",
+                )));
+            }
+        }
+
+        let spec = layouts::t06nnnnx(offset.unwrap_or(0));
+        let data = GrowattData::from_buffer(growatt_data, &spec)?;
+
+        for field in &data.fields {
+            match &field.value {
+                FieldValue::Text(str) => {
+                    log::info!("{}: {}", field.name, str);
+                }
+                FieldValue::Date(date) => {
+                    log::info!(
+                        "{}: {}",
+                        field.name,
+                        date.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+                    );
+                }
+                FieldValue::Number(num) => {
+                    if *num.denom() == 1 {
+                        log::info!("{}: {}", field.name, *num.numer());
+                    } else {
+                        log::info!("{}: {}", field.name, *num.numer() as f64 / *num.denom() as f64);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn from_buffer_auto_detect_layout(
+        growatt_data: &mut [u8],
+        serial: Option<String>,
+    ) -> Result<GrowattData, ProxyError> {
         if growatt_data.len() < 12 {
             // ACK message
             return Err(ProxyError::ParseError);
@@ -212,11 +317,21 @@ impl GrowattData {
 
         GrowattData::validate_integity(growatt_data)?;
 
+        let layout = result.layout();
+        // if layout == "T065103" {
+        //     let datetime: DateTime<Utc> = SystemTime::now().into();
+        //     if let Err(err) = dump_packet(
+        //         &growatt_data,
+        //         &Path::new(format!("/volume1/data/T065103_{}.bin", datetime.format("%Y_%m_%d_%H_%M_%S")).as_str()),
+        //     ) {
+        //         log::warn!("Failed to dump packet: {err}")
+        //     }
+        // }
+
         if spec.decrypt {
             GrowattData::decrypt(growatt_data);
         }
 
-        let layout = result.layout();
         if layout == "T065103" || layout == "T065129" {
             // ignore these layouts that do not contain power data
             return Ok(result);
@@ -361,5 +476,25 @@ mod tests {
             gd.field_value("pvpowerin").unwrap(),
             FieldValue::Number(Rational64::new(31326207, 10))
         );
+    }
+
+    #[test]
+    fn serial_find_vs_fixed() {
+        let growatt_data = include_bytes!("./testdata/growatt_1.bin");
+        let mut data = growatt_data.to_vec();
+
+        let gd = GrowattData::from_buffer(&mut data, &layouts::t065004x()).unwrap();
+
+        if let Some(FieldValue::Text(serial)) = gd.field_value("pvserial") {
+            assert_eq!(serial, String::from("MFK0CE306Q"));
+            let gd_serial = GrowattData::from_buffer_auto_detect_layout(&mut data, Some(serial)).unwrap();
+
+            assert_eq!(
+                gd.field_value("pvpowerin").unwrap(),
+                gd_serial.field_value("pvpowerin").unwrap()
+            );
+        } else {
+            panic!("No serial found");
+        }
     }
 }

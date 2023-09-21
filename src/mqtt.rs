@@ -77,14 +77,20 @@ fn growatt_data_json_remi(data: &GrowattData) -> String {
     map.insert(String::from("HC"), Value::Number(Number::from(0)));
     map.insert(String::from("DC"), Value::Number(Number::from(0)));
     map.insert(String::from("MC"), Value::Number(Number::from(0)));
+    map.insert(String::from("CH"), Value::Number(Number::from(0)));
+    map.insert(String::from("CL"), Value::Number(Number::from(0)));
+
+    if let Some(field) = data.field_value("pvenergytoday") {
+        if let Some(field_val) = field_value_to_json_value(&field, Some(1000.0)) {
+            map.insert(String::from("DC"), field_val);
+        }
+    }
 
     if let Some(field) = data.field_value("pvenergytotal") {
         if let Some(field_val) = field_value_to_json_value(&field, Some(1000.0)) {
             map.insert(String::from("CH"), field_val);
         }
     }
-
-    map.insert(String::from("CL"), Value::Number(Number::from(0)));
 
     Value::Object(map).to_string()
 }

@@ -7,7 +7,14 @@ pub mod proxy;
 #[cfg(feature = "sniffer")]
 pub mod sniffer;
 
-use std::{array::TryFromSliceError, fmt, net::AddrParseError, str::Utf8Error};
+use std::{array::TryFromSliceError, fmt, io::Write, net::AddrParseError, path::Path, str::Utf8Error};
+
+pub fn dump_packet(data: &[u8], output: &Path) -> Result<(), ProxyError> {
+    let mut file = std::fs::OpenOptions::new().write(true).create(true).open(output)?;
+    file.write_all(&data)?;
+
+    Ok(())
+}
 
 #[derive(Debug)]
 pub enum ProxyError {

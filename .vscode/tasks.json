@@ -4,9 +4,7 @@
 		{
 			"type": "cargo",
 			"command": "build",
-			"args": [
-				"--features=sniffer"
-			],
+			"args": [],
 			"problemMatcher": [
 				"$rustc"
 			],

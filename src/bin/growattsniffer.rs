@@ -2,7 +2,7 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[clap(name = "growwatproxy", about = "The growatt data upload proxy")]
+#[clap(name = "growwatsniffer", about = "The growatt data sniffer")]
 struct Opt {
     // set the capture address to filter on
     #[clap(short = 'a', long = "addr", default_value = "0.0.0.0")]
@@ -18,6 +18,9 @@ struct Opt {
 
     #[clap(long = "mqtt-port", default_value_t = 1883)]
     mqtt_port: u16,
+
+    #[clap(short = 'd', long = "dump-packets", default_value_t = false)]
+    dump_packets: bool,
 }
 
 fn main() {
@@ -46,6 +49,7 @@ fn main() {
             address: opt.addr,
             port: opt.port,
             mqtt: mqtt_config,
+            dump_packets: opt.dump_packets,
         });
     }
 

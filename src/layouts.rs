@@ -42,8 +42,8 @@ pub fn t065004x() -> LayoutSpecification {
     )
 }
 
-pub fn t06nnnnx() -> LayoutSpecification {
-    LayoutSpecification::new(
+pub fn t06nnnnx(offset: usize) -> LayoutSpecification {
+    LayoutSpecification::new_with_offset(
         "t06NNNNX",
         true,
         Vec::from([
@@ -66,6 +66,7 @@ pub fn t06nnnnx() -> LayoutSpecification {
             FieldSpecification::number("pvtemperature", 530, 2, 10),
             FieldSpecification::number("pvipmtemperature", 534, 2, 10),
         ]),
+        offset,
     )
 }
 
@@ -79,6 +80,6 @@ pub fn detect_layout(header: &[u8; 8]) -> LayoutSpecification {
 
     match layout.as_str() {
         "T065004X" => t065004x(),
-        _ => t06nnnnx(),
+        _ => t06nnnnx(0),
     }
 }
